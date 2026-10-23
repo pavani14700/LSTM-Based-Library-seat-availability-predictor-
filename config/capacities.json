@@ -1,0 +1,25 @@
+{
+  "total_capacity": 150,
+  "floors": {
+    "floor_1": {
+      "name": "Floor 1 (Quiet Study & Digital Library)",
+      "capacity": 50
+    },
+    "floor_2": {
+      "name": "Floor 2 (Collaborative & Tech Zone)",
+      "capacity": 50
+    },
+    "floor_3": {
+      "name": "Floor 3 (Reference & Reading Room)",
+      "capacity": 50
+    }
+  },
+  "status_thresholds": {
+    "available_max": 0.60,
+    "limited_max": 0.85
+  },
+  "operating_hours": {
+    "open_hour": 8,
+    "close_hour": 22
+  }
+}

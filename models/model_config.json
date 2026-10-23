@@ -1,0 +1,57 @@
+{
+  "model_architecture": "LSTM(64) -> Dropout(0.2) -> LSTM(32) -> Dropout(0.2) -> Dense(32) -> Dense(4, sigmoid)",
+  "lookback_window": 24,
+  "feature_columns": [
+    "occupancy_rate",
+    "floor_1_rate",
+    "floor_2_rate",
+    "floor_3_rate",
+    "sin_hour",
+    "cos_hour",
+    "sin_dow",
+    "cos_dow",
+    "is_weekend",
+    "is_open"
+  ],
+  "target_columns": [
+    "occupancy_rate",
+    "floor_1_rate",
+    "floor_2_rate",
+    "floor_3_rate"
+  ],
+  "training_metadata": {
+    "total_steps": 4313,
+    "train_steps": 3019,
+    "val_steps": 647,
+    "test_steps": 647,
+    "train_start": "2026-01-01 08:00:00",
+    "train_end": "2026-05-07 02:00:00",
+    "test_start": "2026-06-03 02:00:00",
+    "test_end": "2026-06-30 00:00:00"
+  },
+  "capacities": {
+    "total_capacity": 150,
+    "floors": {
+      "floor_1": {
+        "name": "Floor 1 (Quiet Study & Digital Library)",
+        "capacity": 50
+      },
+      "floor_2": {
+        "name": "Floor 2 (Collaborative & Tech Zone)",
+        "capacity": 50
+      },
+      "floor_3": {
+        "name": "Floor 3 (Reference & Reading Room)",
+        "capacity": 50
+      }
+    },
+    "status_thresholds": {
+      "available_max": 0.6,
+      "limited_max": 0.85
+    },
+    "operating_hours": {
+      "open_hour": 8,
+      "close_hour": 22
+    }
+  }
+}

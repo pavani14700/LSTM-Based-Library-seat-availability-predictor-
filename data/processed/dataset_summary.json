@@ -1,0 +1,58 @@
+{
+  "dataset_file": "final dataset.csv",
+  "total_records": 50000,
+  "total_columns": 11,
+  "columns": [
+    "session_id",
+    "student_id",
+    "department",
+    "year",
+    "entry_datetime",
+    "exit_datetime",
+    "duration_minutes",
+    "day_of_week",
+    "library_zone",
+    "hourly_occupancy_rate",
+    "hourly_crowd_level",
+    "entry_dt",
+    "exit_dt"
+  ],
+  "missing_values": {
+    "session_id": 0,
+    "student_id": 0,
+    "department": 0,
+    "year": 0,
+    "entry_datetime": 0,
+    "exit_datetime": 0,
+    "duration_minutes": 0,
+    "day_of_week": 0,
+    "library_zone": 0,
+    "hourly_occupancy_rate": 0,
+    "hourly_crowd_level": 0
+  },
+  "exact_duplicates": 0,
+  "date_range": {
+    "first_entry": "2026-01-01 08:05:00",
+    "last_entry": "2026-06-29 19:56:00",
+    "first_exit": "2026-01-01 09:03:00",
+    "last_exit": "2026-06-29 23:36:00"
+  },
+  "floor_distribution": {
+    "floor_1": 16784,
+    "floor_3": 16676,
+    "floor_2": 16540
+  },
+  "crowd_distribution": {
+    "medium": 21425,
+    "high": 18766,
+    "low": 9809
+  },
+  "avg_duration_minutes": 123.79466,
+  "min_duration_minutes": 30.0,
+  "max_duration_minutes": 300.0,
+  "limitations": [
+    "Dataset records sessions from 08:00 to 19:00 entry hours with exits extending up to 23:36.",
+    "Night hours (00:00 - 07:00) have zero sessions because the facility is closed.",
+    "Long-term forecasting (>14 days ahead) is subject to multi-step recursive error accumulation."
+  ]
+}

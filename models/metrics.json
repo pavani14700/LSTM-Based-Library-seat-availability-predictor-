@@ -1,0 +1,26 @@
+{
+  "test_mae_overall": 0.030073298141360283,
+  "test_rmse_overall": 0.046675220131874084,
+  "baseline_mae_overall": 0.03964313492178917,
+  "baseline_rmse_overall": 0.06377607583999634,
+  "floors": {
+    "floor_1": {
+      "test_mae": 0.04529230296611786,
+      "test_rmse": 0.070567786693573,
+      "baseline_mae": 0.05650079622864723,
+      "baseline_rmse": 0.09573908150196075
+    },
+    "floor_2": {
+      "test_mae": 0.04156637564301491,
+      "test_rmse": 0.06501814723014832,
+      "baseline_mae": 0.05637238919734955,
+      "baseline_rmse": 0.09089531749486923
+    },
+    "floor_3": {
+      "test_mae": 0.047375697642564774,
+      "test_rmse": 0.0756874606013298,
+      "baseline_mae": 0.060481540858745575,
+      "baseline_rmse": 0.10012511909008026
+    }
+  }
+}
