@@ -45,10 +45,6 @@
         "capacity": 50
       }
     },
-    "status_thresholds": {
-      "available_max": 0.6,
-      "limited_max": 0.85
-    },
     "operating_hours": {
       "open_hour": 8,
       "close_hour": 22

@@ -54,39 +54,61 @@ class LibraryPredictor:
         self.historical_df['timestamp'] = pd.to_datetime(self.historical_df['timestamp'])
         self.historical_df = self.historical_df.sort_values('timestamp').reset_index(drop=True)
 
+        # Precompute calendar diurnal profiles (day_of_week, hour) for fast future anchoring
+        temp_df = self.historical_df.copy()
+        temp_df['dow'] = temp_df['timestamp'].dt.dayofweek
+        temp_df['hour'] = temp_df['timestamp'].dt.hour
+        self.diurnal_profile = temp_df.groupby(['dow', 'hour'])[['occupancy_rate', 'floor_1_rate', 'floor_2_rate', 'floor_3_rate']].mean().to_dict(orient='index')
+
     @property
     def last_historical_time(self) -> datetime:
         """Returns the most recent timestamp present in the historical dataset."""
         return self.historical_df['timestamp'].iloc[-1].to_pydatetime()
 
-    def determine_status(self, rate: float, thresholds: Dict[str, float]) -> Dict[str, str]:
-        """Calculates human-readable availability status and UI color tags."""
-        avail_max = thresholds.get("available_max", 0.60)
-        limit_max = thresholds.get("limited_max", 0.85)
+    def determine_status(self, available_seats: int, total_capacity: int = 150, **kwargs) -> Dict[str, str]:
+        """
+        Permanent Availability Rules:
+        - Available: At least one seat is vacant (available_seats > 0).
+        - Occupied: All seats in the library or the relevant floor are occupied (available_seats <= 0).
+        Zero capacity is handled safely to prevent division-by-zero errors.
+        """
+        safe_cap = max(0, int(total_capacity))
+        avail = max(0, int(available_seats))
 
-        if rate < avail_max:
+        if safe_cap <= 0:
             return {
-                "status": "Seats Likely Available",
-                "level": "low",
-                "color": "#10B981",  # Emerald Green
-                "badge": "AVAILABLE",
-                "recommendation": "Great time to visit! Plenty of seating is expected."
+                "status": "Occupied",
+                "level": "occupied",
+                "color": "#DC2626",  # Red
+                "badge": "OCCUPIED",
+                "display_text": "Occupied — 0 seats available.",
+                "recommendation": "Zero capacity configured. 0 seats are available."
             }
-        elif rate < limit_max:
+
+        if avail > 0:
+            if avail == 1:
+                display_text = "Available — 1 seat remaining."
+                rec = "Available — exactly 1 seat remaining."
+            else:
+                display_text = f"Available — {avail} seats remaining."
+                rec = f"Available — {avail} seats available."
+
             return {
-                "status": "Limited Availability",
-                "level": "medium",
-                "color": "#F59E0B",  # Amber
-                "badge": "LIMITED",
-                "recommendation": "Moderate crowd expected. Look for study spots early."
+                "status": "Available",
+                "level": "available",
+                "color": "#059669",  # Emerald Green
+                "badge": "AVAILABLE",
+                "display_text": display_text,
+                "recommendation": rec
             }
         else:
             return {
-                "status": "Library Likely Full",
-                "level": "high",
-                "color": "#EF4444",  # Crimson Red
-                "badge": "NEAR CAPACITY",
-                "recommendation": "High crowd expected. Seat finding may be difficult."
+                "status": "Occupied",
+                "level": "occupied",
+                "color": "#DC2626",  # Red
+                "badge": "OCCUPIED",
+                "display_text": "Occupied — 0 seats available.",
+                "recommendation": "Occupied — all seats are currently occupied."
             }
 
     def _generate_time_features(self, dt: datetime, open_h: int = 8, close_h: int = 22) -> Dict[str, float]:
@@ -115,14 +137,13 @@ class LibraryPredictor:
         Uses recursive rolling window LSTM inference.
         """
         caps = custom_capacities or self.config.get("capacities", {})
-        total_cap = caps.get("total_capacity", 150)
-        thresholds = caps.get("status_thresholds", {"available_max": 0.60, "limited_max": 0.85})
+        total_cap = max(0, int(caps.get("total_capacity", 150)))
         open_h = caps.get("operating_hours", {}).get("open_hour", 8)
         close_h = caps.get("operating_hours", {}).get("close_hour", 22)
 
-        fl1_cap = caps.get("floors", {}).get("floor_1", {}).get("capacity", 50)
-        fl2_cap = caps.get("floors", {}).get("floor_2", {}).get("capacity", 50)
-        fl3_cap = caps.get("floors", {}).get("floor_3", {}).get("capacity", 50)
+        fl1_cap = max(0, int(caps.get("floors", {}).get("floor_1", {}).get("capacity", 50)))
+        fl2_cap = max(0, int(caps.get("floors", {}).get("floor_2", {}).get("capacity", 50)))
+        fl3_cap = max(0, int(caps.get("floors", {}).get("floor_3", {}).get("capacity", 50)))
 
         feature_cols = self.config["feature_columns"]
         lookback = self.config["lookback_window"]
@@ -147,16 +168,6 @@ class LibraryPredictor:
         day_end = target_hour.replace(hour=23)
         forecast_end_dt = max(target_hour, day_end)
 
-        # Build recursive simulation timeline
-        # Starting from last known lookback window
-        recent_window_df = self.historical_df.tail(lookback).copy()
-        rolling_features = recent_window_df[feature_cols].values.copy()
-        rolling_scaled = self.scaler.transform(rolling_features)
-
-        # Cache predictions for needed hours
-        sim_dt = last_hist_dt + timedelta(hours=1)
-        sim_records = []
-
         # If target hour is already in historical data, retrieve it directly
         hist_match = self.historical_df[self.historical_df['timestamp'] == target_hour]
         if not hist_match.empty and hours_ahead <= 0:
@@ -169,19 +180,36 @@ class LibraryPredictor:
             occ_seats = int(round(occ_rate * total_cap))
             avail_seats = max(0, total_cap - occ_seats)
 
-            status_info = self.determine_status(occ_rate, thresholds)
+            status_info = self.determine_status(avail_seats, total_cap)
+
+            fl1_occupied = int(round(fl1_rate * fl1_cap))
+            fl1_available = max(0, fl1_cap - fl1_occupied)
+            fl1_status = self.determine_status(fl1_available, fl1_cap)
+
+            fl2_occupied = int(round(fl2_rate * fl2_cap))
+            fl2_available = max(0, fl2_cap - fl2_occupied)
+            fl2_status = self.determine_status(fl2_available, fl2_cap)
+
+            fl3_occupied = int(round(fl3_rate * fl3_cap))
+            fl3_available = max(0, fl3_cap - fl3_occupied)
+            fl3_status = self.determine_status(fl3_available, fl3_cap)
 
             # Also get 24h of that day
             day_hist = self.historical_df[self.historical_df['timestamp'].dt.date == target_hour.date()].copy()
             hourly_curve = []
             for _, d_row in day_hist.iterrows():
                 h_rate = float(d_row['occupancy_rate'])
+                h_occ = int(round(h_rate * total_cap))
+                h_avail = max(0, total_cap - h_occ)
+                h_status_info = self.determine_status(h_avail, total_cap)
                 hourly_curve.append({
                     "timestamp": d_row['timestamp'].strftime("%Y-%m-%d %H:%M"),
                     "hour": d_row['timestamp'].hour,
                     "occupancy_rate": h_rate,
-                    "occupied_seats": int(round(h_rate * total_cap)),
-                    "available_seats": max(0, total_cap - int(round(h_rate * total_cap))),
+                    "occupied_seats": h_occ,
+                    "available_seats": h_avail,
+                    "status": h_status_info["status"],
+                    "display_text": h_status_info["display_text"],
                     "floor_1_rate": float(d_row['floor_1_rate']),
                     "floor_2_rate": float(d_row['floor_2_rate']),
                     "floor_3_rate": float(d_row['floor_3_rate'])
@@ -205,27 +233,27 @@ class LibraryPredictor:
                         "rate": fl1_rate,
                         "percent": round(fl1_rate * 100, 1),
                         "capacity": fl1_cap,
-                        "occupied": int(round(fl1_rate * fl1_cap)),
-                        "available": max(0, fl1_cap - int(round(fl1_rate * fl1_cap))),
-                        **self.determine_status(fl1_rate, thresholds)
+                        "occupied": fl1_occupied,
+                        "available": fl1_available,
+                        **fl1_status
                     },
                     "floor_2": {
                         "name": caps.get("floors", {}).get("floor_2", {}).get("name", "Floor 2"),
                         "rate": fl2_rate,
                         "percent": round(fl2_rate * 100, 1),
                         "capacity": fl2_cap,
-                        "occupied": int(round(fl2_rate * fl2_cap)),
-                        "available": max(0, fl2_cap - int(round(fl2_rate * fl2_cap))),
-                        **self.determine_status(fl2_rate, thresholds)
+                        "occupied": fl2_occupied,
+                        "available": fl2_available,
+                        **fl2_status
                     },
                     "floor_3": {
                         "name": caps.get("floors", {}).get("floor_3", {}).get("name", "Floor 3"),
                         "rate": fl3_rate,
                         "percent": round(fl3_rate * 100, 1),
                         "capacity": fl3_cap,
-                        "occupied": int(round(fl3_rate * fl3_cap)),
-                        "available": max(0, fl3_cap - int(round(fl3_rate * fl3_cap))),
-                        **self.determine_status(fl3_rate, thresholds)
+                        "occupied": fl3_occupied,
+                        "available": fl3_available,
+                        **fl3_status
                     }
                 },
                 "hourly_curve": hourly_curve
@@ -235,7 +263,31 @@ class LibraryPredictor:
         target_record = None
         day_records = []
 
-        current_window = rolling_scaled[-lookback:, :].copy()
+        if hours_ahead > 72:
+            # Fast Calendar-Anchored Initialization:
+            # For dates far in the future (weeks/months ahead), stepping through thousands of intermediate
+            # hours takes minutes and causes compounding error drift.
+            # We construct an anchor lookback window from the 24 hours immediately preceding the target date
+            # using empirical day-of-week & hourly calendar profiles, then simulate only the target day (24 steps).
+            anchor_rows = []
+            for h in range(lookback):
+                adt = day_start - timedelta(hours=lookback - h)
+                rates = self.diurnal_profile.get(
+                    (adt.weekday(), adt.hour),
+                    {"occupancy_rate": 0.0, "floor_1_rate": 0.0, "floor_2_rate": 0.0, "floor_3_rate": 0.0}
+                )
+                tf_dict = self._generate_time_features(adt, open_h, close_h)
+                row = {**rates, **tf_dict}
+                anchor_rows.append([row[col] for col in feature_cols])
+
+            current_window = self.scaler.transform(np.array(anchor_rows))
+            sim_dt = day_start
+        else:
+            # Near horizon (within 3 days): roll forward sequentially from the last historical observation
+            recent_window_df = self.historical_df.tail(lookback).copy()
+            rolling_features = recent_window_df[feature_cols].values.copy()
+            current_window = self.scaler.transform(rolling_features)
+            sim_dt = last_hist_dt + timedelta(hours=1)
 
         while sim_dt <= forecast_end_dt:
             # 1. Prepare batch of 1
@@ -266,12 +318,18 @@ class LibraryPredictor:
             # 4. Roll window forward
             current_window = np.vstack([current_window[1:, :], next_scaled])
 
+            pred_occ_seats = int(round(pred_occ * total_cap))
+            pred_avail_seats = max(0, total_cap - pred_occ_seats)
+            rec_status = self.determine_status(pred_avail_seats, total_cap)
+
             rec = {
                 "timestamp": sim_dt.strftime("%Y-%m-%d %H:%M"),
                 "hour": sim_dt.hour,
                 "occupancy_rate": float(pred_occ),
-                "occupied_seats": int(round(pred_occ * total_cap)),
-                "available_seats": max(0, total_cap - int(round(pred_occ * total_cap))),
+                "occupied_seats": pred_occ_seats,
+                "available_seats": pred_avail_seats,
+                "status": rec_status["status"],
+                "display_text": rec_status["display_text"],
                 "floor_1_rate": float(pred_fl1),
                 "floor_2_rate": float(pred_fl2),
                 "floor_3_rate": float(pred_fl3)
@@ -294,6 +352,23 @@ class LibraryPredictor:
         tgt_fl2 = target_record["floor_2_rate"]
         tgt_fl3 = target_record["floor_3_rate"]
 
+        tgt_avail = target_record["available_seats"]
+        tgt_occ = target_record["occupied_seats"]
+
+        overall_status = self.determine_status(tgt_avail, total_cap)
+
+        fl1_occupied = int(round(tgt_fl1 * fl1_cap))
+        fl1_available = max(0, fl1_cap - fl1_occupied)
+        fl1_status = self.determine_status(fl1_available, fl1_cap)
+
+        fl2_occupied = int(round(tgt_fl2 * fl2_cap))
+        fl2_available = max(0, fl2_cap - fl2_occupied)
+        fl2_status = self.determine_status(fl2_available, fl2_cap)
+
+        fl3_occupied = int(round(tgt_fl3 * fl3_cap))
+        fl3_available = max(0, fl3_cap - fl3_occupied)
+        fl3_status = self.determine_status(fl3_available, fl3_cap)
+
         return {
             "target_datetime": target_hour.strftime("%Y-%m-%d %H:00"),
             "is_historical": False,
@@ -303,9 +378,9 @@ class LibraryPredictor:
                 "occupancy_rate": tgt_rate,
                 "occupancy_percent": round(tgt_rate * 100, 1),
                 "total_capacity": total_cap,
-                "occupied_seats": target_record["occupied_seats"],
-                "available_seats": target_record["available_seats"],
-                **self.determine_status(tgt_rate, thresholds)
+                "occupied_seats": tgt_occ,
+                "available_seats": tgt_avail,
+                **overall_status
             },
             "floors": {
                 "floor_1": {
@@ -313,27 +388,27 @@ class LibraryPredictor:
                     "rate": tgt_fl1,
                     "percent": round(tgt_fl1 * 100, 1),
                     "capacity": fl1_cap,
-                    "occupied": int(round(tgt_fl1 * fl1_cap)),
-                    "available": max(0, fl1_cap - int(round(tgt_fl1 * fl1_cap))),
-                    **self.determine_status(tgt_fl1, thresholds)
+                    "occupied": fl1_occupied,
+                    "available": fl1_available,
+                    **fl1_status
                 },
                 "floor_2": {
                     "name": caps.get("floors", {}).get("floor_2", {}).get("name", "Floor 2"),
                     "rate": tgt_fl2,
                     "percent": round(tgt_fl2 * 100, 1),
                     "capacity": fl2_cap,
-                    "occupied": int(round(tgt_fl2 * fl2_cap)),
-                    "available": max(0, fl2_cap - int(round(tgt_fl2 * fl2_cap))),
-                    **self.determine_status(tgt_fl2, thresholds)
+                    "occupied": fl2_occupied,
+                    "available": fl2_available,
+                    **fl2_status
                 },
                 "floor_3": {
                     "name": caps.get("floors", {}).get("floor_3", {}).get("name", "Floor 3"),
                     "rate": tgt_fl3,
                     "percent": round(tgt_fl3 * 100, 1),
                     "capacity": fl3_cap,
-                    "occupied": int(round(tgt_fl3 * fl3_cap)),
-                    "available": max(0, fl3_cap - int(round(tgt_fl3 * fl3_cap))),
-                    **self.determine_status(tgt_fl3, thresholds)
+                    "occupied": fl3_occupied,
+                    "available": fl3_available,
+                    **fl3_status
                 }
             },
             "hourly_curve": day_records

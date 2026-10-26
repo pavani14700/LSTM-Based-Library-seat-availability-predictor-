@@ -1,4 +1,4 @@
-# 📚 Library Seat Availability Prediction Using LSTM Deep Learning
+# 📚 SeatSense AI – Library Seat Availability Predictor
 
 A complete, production-ready, local deep learning web application that forecasts future university library occupancy and seat availability using a genuine **TensorFlow/Keras Long Short-Term Memory (LSTM) neural network**.
 
@@ -18,19 +18,27 @@ This application runs **100% locally and offline**:
 
 ## 🌟 Key Features
 
-1. **Genuine Deep Learning Architecture**: Multi-output 2-layer LSTM with Dropout regularization and Dense projection.
-2. **Multi-Step Recursive Forecasting**: Allows users to select any future date and hourly time slot (e.g., 08:00 AM to 10:00 PM).
-3. **Overall & Floor-Wise Breakdown**: Displays predicted occupancy percentage, estimated occupied seats, and estimated available seats for the overall library as well as **Floor 1**, **Floor 2**, and **Floor 3**.
-4. **Availability Status**: Color-coded availability indicators:
-   - 🟢 **Seats Likely Available** (< 60% occupancy)
-   - 🟡 **Limited Availability** (60% - 85% occupancy)
-   - 🔴 **Library Likely Full** (≥ 85% occupancy)
-5. **Interactive Plotly Visualizations**:
+1. **Student Login Portal**: Secure student authentication supporting student IDs (from 8,966 registered students in the dataset or custom guest access), demo accounts, personal study metrics, and attendance tracking.
+2. **Side Navigation Menu Bar**: All analytical output features organized into an intuitive sidebar menu:
+   - 🔮 **Seat Availability Predictor**: Real-time and future forecasting for selected date and hourly slots.
+   - 🏢 **Floor-Wise Breakdown**: Detailed metrics for Floor 1 (Quiet Study), Floor 2 (Collaborative & Tech), and Floor 3 (Reference).
+   - 📈 **Interactive Forecast Charts**: 24-hour horizon curve, floor comparisons, and historical timelines.
+   - 🎓 **My Student Dashboard**: Personal attendance history, cumulative study hours, favorite floor, and smart study recommendations.
+   - 🎯 **Model Accuracy & Benchmarks**: LSTM test metrics (MAE, RMSE, R²) vs 24-hour persistence baseline.
+   - ⚙️ **Capacities & Settings**: Dynamic seating capacity controls.
+   - 📖 **System Architecture**: Technical methodology, session overlap formulation, and offline guarantees.
+3. **Genuine Deep Learning Architecture**: Multi-output 2-layer LSTM with Dropout regularization and Dense projection.
+4. **Multi-Step Recursive Forecasting**: Allows users to select any future date and hourly time slot (e.g., 08:00 AM to 10:00 PM).
+5. **Overall & Floor-Wise Breakdown**: Displays predicted occupancy percentage, estimated occupied seats, and estimated available seats for the overall library as well as **Floor 1**, **Floor 2**, and **Floor 3**.
+6. **Permanent Availability Rules (Two-State Binary Classification)**:
+   - 🟢 **Available:** At least one seat is vacant (`available_seats > 0`). When 1 seat remains, displays **“Available — 1 seat remaining.”**
+   - 🔴 **Occupied:** All seats in the library or floor are occupied (`available_seats == 0`). Displays **“Occupied — 0 seats available.”**
+7. **Interactive Plotly Visualizations**:
    - 24-Hour Forecast Horizon curve with highlighted selected slot.
    - Floor-by-floor occupancy comparison.
    - Historical vs. Predicted time-series continuation.
    - Model Evaluation vs. 24-hour persistence baseline benchmark.
-6. **Configurable Capacities**: Real-time configuration of total library seating capacity and per-floor seat allocations via the sidebar.
+8. **Configurable Capacities**: Real-time configuration of total library seating capacity and per-floor seat allocations via the sidebar.
 
 ---
 
@@ -194,10 +202,6 @@ You can customize library seating capacities and status thresholds:
       "name": "Floor 3 (Reference & Reading Room)",
       "capacity": 50
     }
-  },
-  "status_thresholds": {
-    "available_max": 0.60,
-    "limited_max": 0.85
   },
   "operating_hours": {
     "open_hour": 8,

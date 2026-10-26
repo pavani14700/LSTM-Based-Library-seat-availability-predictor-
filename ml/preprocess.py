@@ -22,10 +22,6 @@ def load_capacity_config(config_path: str = "config/capacities.json") -> Dict[st
                 "floor_2": {"name": "Floor 2", "capacity": 50},
                 "floor_3": {"name": "Floor 3", "capacity": 50}
             },
-            "status_thresholds": {
-                "available_max": 0.60,
-                "limited_max": 0.85
-            },
             "operating_hours": {
                 "open_hour": 8,
                 "close_hour": 22
